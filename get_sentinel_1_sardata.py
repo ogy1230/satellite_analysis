@@ -118,8 +118,6 @@ def get_sar_data(sh_config, bbox, date_time, output_dir):
     resolution = 10  # 10m解像度
     size = bbox_to_dimensions(bbox, resolution)
     size = limit_image_size(size)
-    print(size)
-    print(size)
     request = SentinelHubRequest(
         data_folder=output_dir,
         evalscript=evalscript,
@@ -147,8 +145,8 @@ def get_sar_data(sh_config, bbox, date_time, output_dir):
 
 def main():
     sh_config = get_sentinel_config()
-    bbox = BBox(bbox=(139.0, 35.5, 139.5, 36.0), crs=CRS.WGS84)
-    time_interval = ('2023-01-01', '2023-01-15')
+    bbox = BBox(bbox=(138.17, 38.34, 138.61, 37.81), crs=CRS.WGS84)
+    time_interval = ('2023-01-01', '2023-02-15')
     metadata = get_sentinel_1_metadata(sh_config, bbox, time_interval)
     os.makedirs('sar_data', exist_ok=True)
     for item in metadata:

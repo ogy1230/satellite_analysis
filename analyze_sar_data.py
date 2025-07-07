@@ -3,6 +3,7 @@ import rasterio
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from rasterio.warp import reproject, Resampling
 
 def process_sar_tiff(tiff_path):
     """
@@ -20,6 +21,24 @@ def process_sar_tiff(tiff_path):
         vv_db = 10 * np.log10(vv_linear)
 
         return vv_db, src.meta
+
+def load_and_resample_dem(dem_path, ref_meta):
+    """
+    DEMを読み込み、SAR画像（ref_meta）に合わせてリサンプリング
+    """
+    with rasterio.open(dem_path) as dem_src:
+        dem = dem_src.read(1).astype(float)
+        dem_resampled = np.empty((ref_meta['height'], ref_meta['width']), dtype=float)
+        reproject(
+            source=dem,
+            destination=dem_resampled,
+            src_transform=dem_src.transform,
+            src_crs=dem_src.crs,
+            dst_transform=ref_meta['transform'],
+            dst_crs=ref_meta['crs'],
+            resampling=Resampling.bilinear
+        )
+    return dem_resampled
 
 def visualize_soil_moisture(data, metadata, output_path):
     """
@@ -46,9 +65,12 @@ def main():
     sar_dataディレクトリ内のすべてのTIFFファイルを処理するメイン関数。
     """
     input_dir = Path('sar_data')
-    print(input_dir)
     output_dir = Path('analysis_results')
     output_dir.mkdir(exist_ok=True)
+
+    dem_path = Path('dem/dem.tif')
+    dem_loaded = False
+    dem = None
 
     if not input_dir.exists():
         print(f"エラー: 入力ディレクトリ '{input_dir}' が見つかりません。")
@@ -56,18 +78,39 @@ def main():
         return
 
     tiff_files = list(input_dir.rglob('*.tiff'))
-    print(list(input_dir.rglob('*')))
     if not tiff_files:
         print(f"'{input_dir}' にTIFFファイルが見つかりません。")
         return
 
+    if not dem_path.exists():
+        print(f"エラー: DEMファイル '{dem_path}' が見つかりません。dem_download.py を使ってダウンロードしてください。")
+        return
+
+    for tiff_path in tiff_files:
+        vv_db, meta = process_sar_tiff(tiff_path)
+        if not dem_loaded:
+            dem = load_and_resample_dem(str(dem_path), meta)
+            dem_loaded = True
+        # ここでvv_dbとdemを使った地形補正や解析が可能
+        # 例: 標高情報を可視化とともに保存
+        dem_output = output_dir / (Path(tiff_path).stem + '_dem.png')
+        plt.figure(figsize=(10, 10))
+        plt.imshow(dem, cmap='terrain')
+        plt.title('DEM (標高)')
+        plt.colorbar(label='標高 (m)')
+        plt.savefig(dem_output, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"DEM可視化を保存しました: {dem_output}")
+        # 通常のSAR可視化も従来通り実行
+
     for tiff_file in tiff_files:
+        print(str(tiff_file).split('/')[1])
         print(f"{tiff_file.name} を処理中...")
         try:
             db_data, metadata = process_sar_tiff(tiff_file)
 
             # 出力ファイル名を作成
-            output_filename = output_dir / f"{tiff_file.stem}_analysis.png"
+            output_filename = output_dir / f"{str(tiff_file).split('/')[1]}_analysis.png"
 
             visualize_soil_moisture(db_data, metadata, output_filename)
         except Exception as e:
