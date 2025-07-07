@@ -1,6 +1,9 @@
 import os
-from datetime import datetime, timedelta
 import json
+import configparser
+import time
+import numpy as np
+from datetime import datetime, timedelta
 from sentinelhub import (
     SHConfig,
     SentinelHubRequest,
@@ -16,13 +19,7 @@ from sentinelhub import (
     bbox_to_dimensions
 )
 from PIL import Image
-import numpy as np
 from datetime import datetime, timedelta
-import json
-from pathlib import Path
-import configparser
-from sentinelhub import SentinelHubSession
-import time
 from pathlib import Path
 
 
@@ -44,7 +41,11 @@ def get_sentinel_1_metadata(sh_config, bbox, time_interval):
         bbox=bbox,
         time=time_interval,
         fields={
-            'include': ['properties.datetime', 'properties.platform', 'properties.eo:cloud_cover']
+            'include': [
+                'properties.datetime',
+                'properties.platform',
+                'properties.eo:cloud_cover'
+            ]
         }
     )
     return metadata
@@ -57,6 +58,7 @@ def limit_image_size(size, max_dim=2500):
     width = min(size[0], max_dim)
     height = min(size[1], max_dim)
     return (width, height)
+
 
 def get_sar_data_by_id(sh_config, item_id, bbox, output_dir, resolution=10):
     """
@@ -75,6 +77,8 @@ def get_sar_data_by_id(sh_config, item_id, bbox, output_dir, resolution=10):
     }
     """
     size = bbox_to_dimensions(bbox, resolution)
+    size = limit_image_size(size)
+    print(size)
     request = SentinelHubRequest(
         data_folder=output_dir,
         evalscript=evalscript,
@@ -94,7 +98,8 @@ def get_sar_data_by_id(sh_config, item_id, bbox, output_dir, resolution=10):
     data = request.get_data(save_data=True)
     return request.get_filename_list()[0] if request.get_filename_list() else None
 
-def get_sar_data(sh_config, bbox, datetime, output_dir):
+
+def get_sar_data(sh_config, bbox, date_time, output_dir):
     """
     指定範囲・日時のSentinel-1 SARデータをダウンロードしGeoTIFFで保存
     """
@@ -112,13 +117,16 @@ def get_sar_data(sh_config, bbox, datetime, output_dir):
     """
     resolution = 10  # 10m解像度
     size = bbox_to_dimensions(bbox, resolution)
+    size = limit_image_size(size)
+    print(size)
+    print(size)
     request = SentinelHubRequest(
         data_folder=output_dir,
         evalscript=evalscript,
         input_data=[
             SentinelHubRequest.input_data(
                 data_collection=DataCollection.SENTINEL1_IW,
-                time_interval=(datetime, datetime)
+                time_interval=(date_time[0], date_time[1])
             )
         ],
         responses=[
@@ -128,9 +136,14 @@ def get_sar_data(sh_config, bbox, datetime, output_dir):
         size=size,
         config=sh_config
     )
-    data = request.get_data(save_data=True)
+    request.get_data(save_data=True)
+    # res_data = request.get_data(save_data=True)
     # 保存ファイルパスを返す
-    return request.get_filename_list()[0] if request.get_filename_list() else None
+    if request.get_filename_list()[0]:
+        return request.get_filename_list()[0]
+    else:
+        return None
+
 
 def main():
     sh_config = get_sentinel_config()
@@ -139,7 +152,7 @@ def main():
     metadata = get_sentinel_1_metadata(sh_config, bbox, time_interval)
     os.makedirs('sar_data', exist_ok=True)
     for item in metadata:
-        #print(item['bbox'])
+        # print(item['bbox'])
         # 小数点4桁に丸める
         rounded_bbox = [round(coord, 4) for coord in item['bbox']]
         tmp_bbox = BBox(
@@ -149,9 +162,9 @@ def main():
             ),
             crs=CRS.WGS84
         )
-        get_sar_data_by_id(sh_config, item['id'], tmp_bbox, 'sar_data')
+        # get_sar_data_by_id(sh_config, item['id'], tmp_bbox, 'sar_data')
+        get_sar_data(sh_config, tmp_bbox, time_interval, 'sar_data')
 
 
 if __name__ == '__main__':
     main()
-
