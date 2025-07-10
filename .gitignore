@@ -1,5 +1,12 @@
 .png
 .mp4
 .json
+.zip
+sar_data
 sar_data/*
+analysis_results
 analysis_results/*
+dem
+dem/*
+tmp_dem
+tmp_dem/*
